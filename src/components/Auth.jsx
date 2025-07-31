@@ -21,7 +21,9 @@ export default function Auth() {
 
     async function action(){
       if(activeTab==='signin'){
-        return await supabase.auth.signInWithPassword({email,password});
+        return await supabase.auth.signInWithPassword({email,password, options: {
+        emailRedirectTo: `${window.location.origin}/`, 
+      },});
       }
       return await supabase.auth.signUp({email,password})
     }
