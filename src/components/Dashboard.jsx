@@ -1,97 +1,78 @@
-import { useState } from 'react';
-import { supabase } from '../supabaseClient';
-import StudentManagement from './StudentManagement';
-import RoomManagement from './RoomManagement';
-import { useTheme } from './ThemeProvider';
-import { AnimatePresence, motion } from 'framer-motion';
-import { LogOut, Moon, Sun, Users, BedDouble, Menu, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { supabase } from '../supabase/client';
 
-export default function Dashboard({ session }) {
-  const [activeTab, setActiveTab] = useState('students');
-  const { theme, toggleTheme } = useTheme();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+const Dashboard = ({ hostelId }) => {
+    const [stats, setStats] = useState({ rooms: 0, students: 0, occupancy: 0 });
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-  const NavButton = ({ tabName, icon, children }) => (
-    <button
-      onClick={() => setActiveTab(tabName)}
-      className={`w-full flex items-center p-3 rounded-lg transition-colors duration-200 ${
-        activeTab === tabName
-          ? 'bg-blue-600 text-white'
-          : 'hover:bg-gray-200 dark:hover:bg-gray-700'
-      }`}
-    >
-      {icon}
-      <span className="ml-4 font-medium">{children}</span>
-    </button>
-  );
+    useEffect(() => {
+        const fetchStats = async () => {
+            if (!hostelId) return;
+            setLoading(true);
+            setError(null);
 
-  const sidebarVariants = {
-    open: { x: 0, transition: { type: 'spring', stiffness: 300, damping: 30 } },
-    closed: { x: '-100%', transition: { type: 'spring', stiffness: 300, damping: 30 } },
-  };
+            try {
+                const { data: roomsData, error: roomsError } = await supabase
+                    .from('rooms')
+                    .select('id, capacity, current_occupancy')
+                    .eq('hostel_id', hostelId);
 
-  return (
-    <div className="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden">
-      {/* Sidebar */}
-      <motion.aside
-        variants={sidebarVariants}
-        initial="open"
-        animate={isSidebarOpen ? 'open' : 'closed'}
-        className="absolute md:relative z-20 w-64 flex-shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col p-4"
-      >
-        <div className="flex items-center justify-between mb-8">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">HostelHQ</h1>
-            <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-1">
-                <X size={20} />
-            </button>
+                if (roomsError) throw roomsError;
+
+                const { count: studentsCount, error: studentsError } = await supabase
+                    .from('students')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('hostel_id', hostelId);
+
+                if (studentsError) throw studentsError;
+
+                const totalCapacity = roomsData.reduce((acc, room) => acc + room.capacity, 0);
+                const totalOccupancy = roomsData.reduce((acc, room) => acc + room.current_occupancy, 0);
+                const occupancyPercentage = totalCapacity > 0 ? (totalOccupancy / totalCapacity) * 100 : 0;
+
+                setStats({
+                    rooms: roomsData.length,
+                    students: studentsCount,
+                    occupancy: occupancyPercentage.toFixed(2),
+                });
+            } catch (error) {
+                setError(error.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchStats();
+    }, [hostelId]);
+
+    if (loading) {
+        return <p>Loading dashboard...</p>;
+    }
+
+    if (error) {
+        return <p className="text-red-500">Error loading dashboard: {error}</p>;
+    }
+
+    return (
+        <div className="p-4">
+            <h1 className="text-2xl font-bold mb-4">Hostel Dashboard</h1>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white p-6 rounded-lg shadow-md">
+                    <h3 className="text-lg font-medium text-gray-700">Total Rooms</h3>
+                    <p className="text-3xl font-bold text-indigo-600">{stats.rooms}</p>
+                </div>
+                <div className="bg-white p-6 rounded-lg shadow-md">
+                    <h3 className="text-lg font-medium text-gray-700">Total Students</h3>
+                    <p className="text-3xl font-bold text-indigo-600">{stats.students}</p>
+                </div>
+                <div className="bg-white p-6 rounded-lg shadow-md">
+                    <h3 className="text-lg font-medium text-gray-700">Occupancy Rate</h3>
+                    <p className="text-3xl font-bold text-indigo-600">{stats.occupancy}%</p>
+                </div>
+            </div>
         </div>
-        <nav className="flex flex-col space-y-2">
-          <NavButton tabName="students" icon={<Users size={20} />}>Students</NavButton>
-          <NavButton tabName="rooms" icon={<BedDouble size={20} />}>Rooms</NavButton>
-        </nav>
-        <div className="mt-auto space-y-2">
-           <div className="text-sm p-3 border-t border-gray-200 dark:border-gray-700">
-                <p className="font-semibold truncate">{session.user.email}</p>
-           </div>
-           <button
-             onClick={toggleTheme}
-             className="w-full flex items-center p-3 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
-           >
-             {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
-             <span className="ml-4 font-medium">Toggle Theme</span>
-           </button>
-           <button
-             onClick={() => supabase.auth.signOut()}
-             className="w-full flex items-center p-3 rounded-lg text-red-500 hover:bg-red-100 dark:hover:bg-red-500/20"
-           >
-             <LogOut size={20} />
-             <span className="ml-4 font-medium">Sign Out</span>
-           </button>
-        </div>
-      </motion.aside>
+    );
+};
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center md:hidden p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-            <button onClick={() => setIsSidebarOpen(true)} className="p-1">
-                <Menu size={20} />
-            </button>
-             <h1 className="text-lg font-bold ml-4">{activeTab === 'students' ? 'Student Management' : 'Room Management'}</h1>
-        </header>
-        <div className="flex-1 p-4 md:p-8 overflow-y-auto">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                {activeTab === 'students' ? <StudentManagement /> : <RoomManagement />}
-              </motion.div>
-            </AnimatePresence>
-        </div>
-      </main>
-    </div>
-  );
-}
+export default Dashboard;

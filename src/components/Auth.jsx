@@ -1,100 +1,112 @@
 import { useState } from 'react';
-import { supabase } from '../supabaseClient';
-import { motion } from 'framer-motion';
-import { useTheme } from './ThemeProvider';
-import { Sun, Moon, LogIn, UserPlus } from 'lucide-react';
+import { supabase } from '../supabase/client';
+
+const getURL = () => {
+  let url =
+    import.meta.env?.VITE_PUBLIC_SITE_URL ?? 
+    import.meta?.env?.VITE_PUBLIC_VERCEL_URL ??
+    'http://localhost:3000/'
+
+  url = url.startsWith('http') ? url : `https://${url}`
+
+  url = url.endsWith('/') ? url : `${url}/`
+  return url
+}
+
 
 export default function Auth() {
-  const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState(null);
-  const [message, setMessage] = useState('');
-  const [activeTab, setActiveTab] = useState('signin');
-  const { theme, toggleTheme } = useTheme();
+    const [loading, setLoading] = useState(false);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [isLogin, setIsLogin] = useState(true);
+    const [error, setError] = useState(null);
+    const [message, setMessage] = useState('');
 
-  const handleAuthAction = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setMessage('');
+    const handleAuth = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError(null);
+        setMessage('');
 
-    async function action(){
-      if(activeTab==='signin'){
-        return await supabase.auth.signInWithPassword({email,password, options: {
-        emailRedirectTo: `${window.location.origin}/`, 
-      },});
-      }
-      return await supabase.auth.signUp({email,password})
-    }
-    const { error } = await action({ email, password });
+        try {
+            let response;
+            if (isLogin) {
+                response = await supabase.auth.signInWithPassword({ email, password });
+            } else {
+                response = await supabase.auth.signUp({ email, password ,options:{
+                  emailRedirectTo: getURL()
+                }});
+                if (!response.error) {
+                    setMessage('Check your email for the confirmation link!');
+                }
+            }
+            if (response.error) throw response.error;
+        } catch (error) {
+            setError(error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-    if (error) {
-      setError(error.message);
-    } else if (activeTab === 'signup') {
-      setMessage('Success! Please check your email for a confirmation link.');
-    }
-    setLoading(false);
-  };
-  
-  const switchTab = (tab) => {
-      setActiveTab(tab);
-      setEmail('');
-      setPassword('');
-      setError(null);
-      setMessage(null);
-  }
-
-  return (
-    <div className="flex items-center justify-center min-h-screen p-4 bg-gray-100 dark:bg-gray-900">
-      <button onClick={toggleTheme} className="absolute top-4 right-4 p-2 rounded-full bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 shadow-md">
-        {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
-      </button>
-
-      <motion.div
-        initial={{ opacity: 0, y: -50 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: 'easeOut' }}
-        className="w-full max-w-md"
-      >
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden">
-            <div className="flex">
-                <button
-                    onClick={() => switchTab('signin')}
-                    className={`w-1/2 p-4 text-sm font-medium transition-colors ${activeTab === 'signin' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}
-                >
-                    Sign In
-                </button>
-                <button
-                    onClick={() => switchTab('signup')}
-                    className={`w-1/2 p-4 text-sm font-medium transition-colors ${activeTab === 'signup' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}
-                >
-                    Sign Up
-                </button>
-            </div>
-            <div className="p-8">
-                 <div className="text-center mb-4">
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white">HostelHQ</h1>
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-md w-full space-y-8">
+                <div>
+                    <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                        {isLogin ? 'Sign in to your account' : 'Create a new account'}
+                    </h2>
                 </div>
-
-                {error && <p className="text-center text-sm text-red-500 dark:text-red-400 animate-fade-in">{error}</p>}
-                {message && <p className="text-center text-sm text-green-500 dark:text-green-400 animate-fade-in">{message}</p>}
-
-                <form onSubmit={handleAuthAction} className="space-y-6 pt-6">
-                    <div className="relative">
-                        <input id="email" type="email" className="w-full px-4 py-3 text-gray-900 bg-gray-50 dark:bg-gray-700 dark:text-white border-2 border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                <form className="mt-8 space-y-6" onSubmit={handleAuth}>
+                    <div className="rounded-md shadow-sm -space-y-px">
+                        <div>
+                            <label htmlFor="email-address" className="sr-only">Email address</label>
+                            <input
+                                id="email-address"
+                                name="email"
+                                type="email"
+                                autoComplete="email"
+                                required
+                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                                placeholder="Email address"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="password" className="sr-only">Password</label>
+                            <input
+                                id="password"
+                                name="password"
+                                type="password"
+                                autoComplete="current-password"
+                                required
+                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                                placeholder="Password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                            />
+                        </div>
                     </div>
-                    <div className="relative">
-                        <input id="password" type="password" className="w-full px-4 py-3 text-gray-900 bg-gray-50 dark:bg-gray-700 dark:text-white border-2 border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+
+                    <div>
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400"
+                        >
+                            {loading ? 'Loading...' : (isLogin ? 'Sign in' : 'Sign up')}
+                        </button>
                     </div>
-                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" disabled={loading} className="w-full flex justify-center items-center px-4 py-3 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-900 disabled:opacity-60 transition-all duration-300">
-                        {activeTab === 'signin' ? <LogIn className="mr-2 h-5 w-5"/> : <UserPlus className="mr-2 h-5 w-5"/>}
-                        {loading ? 'Processing...' : (activeTab === 'signin' ? 'Sign In' : 'Create Account')}
-                    </motion.button>
+
+                    {error && <p className="mt-2 text-center text-sm text-red-600">{error}</p>}
+                    {message && <p className="mt-2 text-center text-sm text-green-600\">{message}</p>}
                 </form>
+                <p className="mt-2 text-center text-sm text-gray-600">
+                    <a href="#" onClick={(e) => { e.preventDefault(); setIsLogin(!isLogin); setError(null); setMessage(''); }} className="font-medium text-indigo-600 hover:text-indigo-500">
+                        {isLogin ? 'Need an account? Sign up' : 'Already have an account? Sign in'}
+                    </a>
+                </p>
             </div>
         </div>
-      </motion.div>
-    </div>
-  );
+    );
 }
